@@ -1,74 +1,46 @@
-#from scapy.all import ICMP, IP, sr, raw
-import sys
+#!/usr/bin/env python3
+import secrets
 import socket
+import struct
+import sys
 
-# Construct ICMP socket
-s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP) # AF_INET = IPv4, SOCK_RAW = raw socket, IPPROTO_ICMP = ICMP
-s.connect((sys.argv[1], int(sys.argv[2])))
+from Crypto.Cipher import AES
 
-s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+from aes import shared_aes_key
+from icmp import *
 
-
-
-ip_header = b'\x45\x00\x00\x1c' # Version, IHL, Type of Service | Total Length
-ip_header += b'\xab\xcd\x00\x00' # Identification | Flags, Fragment Offset
-ip_header += b'\x40\x01\x6b\xd8' # TTL, Protocol | Header Checksum
-#ip_header += b'\xc0\xa8\x92\x83' # Source Address
-ip_header += b'\x0e\x00\x00\x01' # Source Address
-#ip_header += b'\x08\x08\x08\x08' # Destination Address
-ip_header += b'\x0e\x00\x00\x01' # Destination Address
-
-icmp_header = b'\x08\x00\xe5\xca' # Type of message, Code | Checksum
-icmp_header += b'\x12\x34\x00\x01' # Identifier | Sequence Number
-
-packet = ip_header + icmp_header
-
-ip = sys.argv[1]
-port = int(sys.argv[2])
-
-s.send(b'helloworld')
-# s.sendto(packet, (ip, port))
+from checksum1071 import ip_checksum
 
 
+def send_covert_message(ip: str = "127.0.0.1", port: int=9000, message: str="Hello World"):
 
+    # The payload we want to send the receiver
+    icmp_payload = bytes(message, encoding="utf-8")
 
+    # Set the checksum
+    icmp_header: bytes = struct.pack(icmp_header_format, icmp_type, icmp_code, icmp_temp_checksum, 0) # Rest of header field is irrelevant for our message
 
+    # Encrypting the payload and sending the nonce and tag witht he packet
+    nonce = secrets.token_bytes(16)
+    aes = AES.new(shared_aes_key, AES.MODE_GCM, nonce=nonce)
+    ciphertext, tag = aes.encrypt_and_digest(icmp_payload)
 
-# def generate_icmp_packet(data: str, source_ip: str, dest_ip: str, dest_port: int=21):
-#     # return IP(raw(IP(dst=sys.argv[1], src=sys.argv[1])/ICMP(type=0) / data.encode("utf-8")))
-#     return IP(dst=sys.argv[1], src=sys.argv[1])/ICMP(type=0) / data.encode("utf-8")
+    icmp_payload = nonce + tag + ciphertext
 
-# packet = generate_icmp_packet("Hello World", source_ip="127.0.0.1", dest_ip=sys.argv[1], dest_port=sys.argv[2])
+    # Setting the checksum
+    icmp_checksum = ip_checksum(icmp_header + icmp_payload)
+    icmp_header = struct.pack(icmp_header_format, icmp_type, icmp_code, icmp_checksum, 0) # Setting the correct ICMP checksum
 
-# print(packet.show())
+    # Send the packet
+    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+    packet = icmp_header + icmp_payload
 
-# sr(packet, retry=5, timeout=1.5, iface="lo0")
+    s.sendto(packet, (ip, port))
+    print("Message sent successfully")
 
-# import socket
-# import sys
-
-# argc = len(sys.argv)
-
-# if argc != 3:
-#     print("Usage: python3 task1_sender.py <IP address> <port number>")
-#     sys.exit(1)
-
-# ip = sys.argv[1]
-# port = int(sys.argv[2])
-
-# # Construct ICMP socket
-# s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP) # AF_INET = IPv4, SOCK_RAW = raw socket, IPPROTO_ICMP = ICMP
-
-# s.connect((ip, port)) # Bind to port 0, which means any available port
-
-# while True:
-#     message = input("Enter message to send the reicever: ")
-
-#     # Encrypt with AES-GCM
-#     # TODO
-
-#     # Send the message
-    
-#     print(f"Sending the following message to {ip}:{port}\n{message}")
-
-#     s.send(message.encode())
+while True:
+    message = input("Enter message to covertly send: ")
+    if len(sys.argv) == 3: # If the user has specified an IP and port
+        send_covert_message(sys.argv[1], int(sys.argv[2]), message)
+    else:
+        send_covert_message(message=message)

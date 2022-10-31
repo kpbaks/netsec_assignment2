@@ -1,1 +1,1 @@
-shared_aes_key: bytes = b"1234567890123456"
+shared_aes_key: bytes = b"2923a57ed1ac1aac"

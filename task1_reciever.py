@@ -1,29 +1,14 @@
 #!/usr/bin/env python3
-import struct
 import socket
+import struct
 import sys
+
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad, unpad
-import secrets
 
-from requests import head
-from icmp import *
 from aes import shared_aes_key
+from icmp import *
 
-def receive(sock):
-	# Upper limit of the message length
-	MSGLEN = 4096
-
-	chunks = []
-	bytes_recd = 0
-	while bytes_recd < MSGLEN:
-		chunk = sock.recv(min(MSGLEN - bytes_recd, 2048))
-		if chunk == b"":
-			break
-	# raise RuntimeError("Socket connection broken")
-	chunks.append(chunks)
-	bytes_recd = bytes_recd + len(chunks)
-	return b"".join(chunks)
+from checksum1071 import ip_checksum
 
 argc = len(sys.argv)
 if argc != 3:
@@ -37,39 +22,37 @@ port = int(sys.argv[2])
 s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP) # AF_INET = IPv4, SOCK_RAW = raw socket, IPPROTO_ICMP = ICMP
 s.setsockopt(socket.SOL_IP, socket.IP_HDRINCL, 1)
 
+print(f"Ready to receive covert messages using ICMP packets on port {port}.")
 while True:
-	payload, addr = s.recvfrom(1508) # Establish connection with client.
-	print('Got connection from', addr)
-	print(f"len(payload): {len(payload)}")
+	MAXIMUM_PACKET_SIZE = 4 * 1024
+	payload, addr = s.recvfrom(MAXIMUM_PACKET_SIZE) # Establish connection with client.
+	
+	payload = payload[20:] # IP header is 20 bytes
 
-	payload = payload[20:] # assume IP header is 20 bytes
-
-	print(payload)
-	header = payload[:8]
-	type_, code, checksum, _ = struct.unpack(icmp_header_format, header) # Rest of header field is irrelevant for our message
-
-	# TODO: Check checksum
+	header = payload[:8] # ICMP header is 8 bytes
+	type_, code, _, _ = struct.unpack(icmp_header_format, header) # Rest of header field is irrelevant for our message
 	
 	if type_ != icmp_type:
 		continue
 
-	print(f"Type: {type_}, Code: {code}, Checksum: {checksum}")
-
-	# Decrypting the data
 	nonce = payload[8:24]
 	aes = AES.new(shared_aes_key, AES.MODE_GCM, nonce=nonce)
 	tag = payload[24:40]
-	data = payload[40:]
-	plaintext = aes.decrypt_and_verify(data, tag)
-	
-	print(f"Decrypted data: {plaintext.decode('utf-8')}")
+	ciphertext = payload[40:]
 
-	#c.send('Thank you for connecting')
+	# Verify RFC 1071 checksum
+	icmp_checksum = ip_checksum(header + payload[8:])
+	if icmp_checksum != 0:
+		print("Invalid checksum.")
+		continue
+	
 
-	# Reading the whole message from the client
-	#payload = receive(c)
+	# Check checksum
+	# icmp_checksum_check = checksum(header + nonce + tag + ciphertext)
+	# if icmp_checksum_check != checksum:
+	# 	print("Checksum failed")
+	# 	continue
+
+	plaintext = aes.decrypt_and_verify(ciphertext, tag)
 	
-	# Print the message
-	#print(payload)
-	
-	#c.close() # Close the connection
+	print(f"Recieved and decrypted message: {plaintext.decode('utf-8')}")
