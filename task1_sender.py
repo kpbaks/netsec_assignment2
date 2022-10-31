@@ -12,7 +12,7 @@ from icmp import *
 from checksum1071 import ip_checksum
 
 
-def send_covert_message(ip: str = "127.0.0.1", port: int=9000, message: str="Hello World"):
+def send_covert_message(ip: str = "127.0.0.1", message: str="Hello World"):
 
     # The payload we want to send the receiver
     icmp_payload = bytes(message, encoding="utf-8")
@@ -35,12 +35,12 @@ def send_covert_message(ip: str = "127.0.0.1", port: int=9000, message: str="Hel
     s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
     packet = icmp_header + icmp_payload
 
-    s.sendto(packet, (ip, port))
+    s.sendto(packet, (ip, 0)) # The port is irrelevant for ICMP
     print("Message sent successfully")
 
 while True:
     message = input("Enter message to covertly send: ")
-    if len(sys.argv) == 3: # If the user has specified an IP and port
-        send_covert_message(sys.argv[1], int(sys.argv[2]), message)
+    if len(sys.argv) == 2: # If the user has specified an IP and port
+        send_covert_message(sys.argv[1], message)
     else:
         send_covert_message(message=message)

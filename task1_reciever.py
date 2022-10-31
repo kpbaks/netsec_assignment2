@@ -10,19 +10,11 @@ from icmp import *
 
 from checksum1071 import ip_checksum
 
-argc = len(sys.argv)
-if argc != 3:
-	print("Usage: python3 task1_sender.py <IP address> <port number>")
-	sys.exit(1)
-
-ip = sys.argv[1]
-port = int(sys.argv[2])
-
 # Construct ICMP socket
 s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP) # AF_INET = IPv4, SOCK_RAW = raw socket, IPPROTO_ICMP = ICMP
 s.setsockopt(socket.SOL_IP, socket.IP_HDRINCL, 1)
 
-print(f"Ready to receive covert messages using ICMP packets on port {port}.")
+print(f"Ready to receive covert messages using ICMP packets.")
 while True:
 	MAXIMUM_PACKET_SIZE = 4 * 1024
 	payload, addr = s.recvfrom(MAXIMUM_PACKET_SIZE) # Establish connection with client.
