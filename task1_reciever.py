@@ -45,13 +45,6 @@ while True:
 	if icmp_checksum != 0:
 		print("Invalid checksum.")
 		continue
-	
-
-	# Check checksum
-	# icmp_checksum_check = checksum(header + nonce + tag + ciphertext)
-	# if icmp_checksum_check != checksum:
-	# 	print("Checksum failed")
-	# 	continue
 
 	plaintext = aes.decrypt_and_verify(ciphertext, tag)
 	
